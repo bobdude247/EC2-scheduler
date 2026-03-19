@@ -246,9 +246,9 @@ createApp({
       <section class="panel">
         <h2>Calendar</h2>
         <div class="calendar-header">
-          <button class="secondary" @click="prevMonth">◀</button>
+          <button type="button" class="secondary" @click="prevMonth">◀</button>
           <strong>{{ calendarTitle }}</strong>
-          <button class="secondary" @click="nextMonth">▶</button>
+          <button type="button" class="secondary" @click="nextMonth">▶</button>
         </div>
         <div class="calendar-grid weekdays">
           <span v-for="day in weekdayNames" :key="day">{{ day }}</span>
@@ -275,7 +275,7 @@ createApp({
           </button>
         </div>
         <div class="actions calendar-actions">
-          <button class="secondary" @click="clearSelectedDates">Clear Selected Days</button>
+          <button type="button" class="secondary" @click="clearSelectedDates">Clear Selected Days</button>
           <span class="notice">Selected days: {{ selectedDates.length || 0 }}</span>
         </div>
       </section>
@@ -305,8 +305,8 @@ createApp({
           </label>
         </div>
         <div class="actions">
-          <button @click="addSchedule">Add Entry</button>
-          <button class="secondary" @click="downloadYaml">Download YAML</button>
+          <button type="button" @click="addSchedule">Add Entry</button>
+          <button type="button" class="secondary" @click="downloadYaml">Download YAML</button>
           <label class="file-input">
             Import iCalendar (.ics)
             <input type="file" accept=".ics,text/calendar" @change="importIcs" />
@@ -329,7 +329,7 @@ createApp({
               <td>{{ item.startTime }}</td>
               <td>{{ item.stopTime }}</td>
               <td>{{ item.timezone }}</td>
-              <td><button class="danger" @click="removeSchedule(index)">Remove</button></td>
+              <td><button type="button" class="danger" @click="removeSchedule(index)">Remove</button></td>
             </tr>
           </tbody>
         </table>
@@ -351,8 +351,8 @@ createApp({
               <td>{{ item.stopTime }}</td>
               <td>{{ item.timezone }}</td>
               <td>
-                <button class="secondary" @click="focusCalendarDate(item.date)">Focus</button>
-                <button class="danger" @click="removeSchedule(item.index)">Remove</button>
+                <button type="button" class="secondary" @click="focusCalendarDate(item.date)">Focus</button>
+                <button type="button" class="danger" @click="removeSchedule(item.index)">Remove</button>
               </td>
             </tr>
           </tbody>
