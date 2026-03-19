@@ -21,6 +21,8 @@ createApp({
     const today = new Date();
     const calendarYear = ref(today.getFullYear());
     const calendarMonth = ref(today.getMonth());
+    const selectedDates = ref([form.date]);
+    const activeDay = ref(form.date);
 
     const calendarTitle = computed(() => `${monthNames[calendarMonth.value]} ${calendarYear.value}`);
 
@@ -28,6 +30,20 @@ createApp({
       const [y, m, d] = form.date.split('-').map(Number);
       return new Date(y, m - 1, d);
     });
+
+    const selectedDateSet = computed(() => new Set(selectedDates.value));
+
+    const schedulesByDate = computed(() =>
+      schedules.value.reduce((acc, item, index) => {
+        if (!acc[item.date]) {
+          acc[item.date] = [];
+        }
+        acc[item.date].push({ ...item, index });
+        return acc;
+      }, {})
+    );
+
+    const activeDaySchedules = computed(() => schedulesByDate.value[activeDay.value] || []);
 
     const dayCells = computed(() => {
       const firstDay = new Date(calendarYear.value, calendarMonth.value, 1).getDay();
@@ -40,12 +56,24 @@ createApp({
 
       for (let day = 1; day <= totalDays; day += 1) {
         const isoDate = `${calendarYear.value}-${String(calendarMonth.value + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const isSelected =
+        const eventItems = schedulesByDate.value[isoDate] || [];
+        const isPrimaryDate =
           selectedDate.value.getFullYear() === calendarYear.value &&
           selectedDate.value.getMonth() === calendarMonth.value &&
           selectedDate.value.getDate() === day;
+        const isSelected = selectedDateSet.value.has(isoDate);
+        const isActive = activeDay.value === isoDate;
 
-        cells.push({ empty: false, label: String(day), isoDate, isSelected });
+        cells.push({
+          empty: false,
+          label: String(day),
+          isoDate,
+          isSelected,
+          isPrimaryDate,
+          isActive,
+          eventItems,
+          eventCount: eventItems.length,
+        });
       }
 
       return cells;
@@ -71,7 +99,19 @@ createApp({
     });
 
     function addSchedule() {
-      schedules.value.push({ ...form });
+      const datesToAdd = selectedDates.value.length ? [...selectedDates.value] : [form.date];
+
+      datesToAdd.forEach((date) => {
+        schedules.value.push({
+          target: form.target,
+          date,
+          startTime: form.startTime,
+          stopTime: form.stopTime,
+          timezone: form.timezone,
+        });
+      });
+
+      icsNotice.value = `Added ${datesToAdd.length} schedule entr${datesToAdd.length === 1 ? 'y' : 'ies'} from day selection.`;
     }
 
     function removeSchedule(index) {
@@ -96,8 +136,27 @@ createApp({
       calendarMonth.value += 1;
     }
 
-    function selectCalendarDate(isoDate) {
+    function toggleCalendarDate(isoDate) {
+      const picked = new Set(selectedDates.value);
+      if (picked.has(isoDate)) {
+        picked.delete(isoDate);
+      } else {
+        picked.add(isoDate);
+      }
+
+      const nextSelected = [...picked].sort();
+      selectedDates.value = nextSelected;
       form.date = isoDate;
+      activeDay.value = isoDate;
+    }
+
+    function focusCalendarDate(isoDate) {
+      form.date = isoDate;
+      activeDay.value = isoDate;
+    }
+
+    function clearSelectedDates() {
+      selectedDates.value = [];
     }
 
     function downloadYaml() {
@@ -165,11 +224,16 @@ createApp({
       weekdayNames,
       calendarTitle,
       dayCells,
+      selectedDates,
+      activeDay,
+      activeDaySchedules,
       addSchedule,
       removeSchedule,
       prevMonth,
       nextMonth,
-      selectCalendarDate,
+      toggleCalendarDate,
+      focusCalendarDate,
+      clearSelectedDates,
       downloadYaml,
       importIcs,
     };
@@ -194,12 +258,25 @@ createApp({
             v-for="(cell, idx) in dayCells"
             :key="idx"
             class="calendar-cell"
-            :class="{ muted: cell.empty, selected: cell.isSelected }"
+            :class="{ muted: cell.empty, selected: cell.isSelected, active: cell.isActive, hasEvents: cell.eventCount > 0 }"
             :disabled="cell.empty"
-            @click="!cell.empty && selectCalendarDate(cell.isoDate)"
+            @click="!cell.empty && toggleCalendarDate(cell.isoDate)"
           >
-            {{ cell.label }}
+            <span class="day-label">{{ cell.label }}</span>
+            <span v-if="cell.eventCount" class="event-count">{{ cell.eventCount }} event{{ cell.eventCount > 1 ? 's' : '' }}</span>
+            <span
+              v-for="(event, eventIdx) in cell.eventItems.slice(0, 2)"
+              :key="cell.isoDate + '-' + eventIdx"
+              class="event-pill"
+            >
+              {{ event.startTime }} → {{ event.stopTime }}
+            </span>
+            <span v-if="cell.eventCount > 2" class="event-pill more">+{{ cell.eventCount - 2 }} more</span>
           </button>
+        </div>
+        <div class="actions calendar-actions">
+          <button class="secondary" @click="clearSelectedDates">Clear Selected Days</button>
+          <span class="notice">Selected days: {{ selectedDates.length || 0 }}</span>
         </div>
       </section>
 
@@ -257,6 +334,30 @@ createApp({
           </tbody>
         </table>
         <p v-else>No schedules yet. Add one above.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Day Drill-down</h2>
+        <p class="subtitle day-title">{{ activeDay }}</p>
+        <table v-if="activeDaySchedules.length">
+          <thead>
+            <tr><th>#</th><th>Target</th><th>Start</th><th>Stop</th><th>Timezone</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="item in activeDaySchedules" :key="item.date + '-' + item.index">
+              <td>{{ item.index + 1 }}</td>
+              <td>{{ item.target }}</td>
+              <td>{{ item.startTime }}</td>
+              <td>{{ item.stopTime }}</td>
+              <td>{{ item.timezone }}</td>
+              <td>
+                <button class="secondary" @click="focusCalendarDate(item.date)">Focus</button>
+                <button class="danger" @click="removeSchedule(item.index)">Remove</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else>No entries for this day yet.</p>
       </section>
 
       <section class="panel">

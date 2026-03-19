@@ -70,6 +70,12 @@ h2 {
   color: #e2e8f0;
   padding: 8px 6px;
   border-radius: 8px;
+  min-height: 88px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
 }
 
 .calendar-cell.muted {
@@ -79,6 +85,42 @@ h2 {
 .calendar-cell.selected {
   border-color: #3b82f6;
   background: #1e3a8a;
+}
+
+.calendar-cell.active {
+  outline: 2px solid #22c55e;
+  outline-offset: 1px;
+}
+
+.calendar-cell.hasEvents {
+  border-color: #60a5fa;
+}
+
+.day-label {
+  font-weight: 600;
+}
+
+.event-count {
+  font-size: 0.75rem;
+  color: #bfdbfe;
+}
+
+.event-pill {
+  display: inline-block;
+  max-width: 100%;
+  font-size: 0.72rem;
+  background: rgba(2, 6, 23, 0.45);
+  border: 1px solid #475569;
+  border-radius: 999px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-pill.more {
+  color: #93c5fd;
+  border-color: #3b82f6;
 }
 
 label {
@@ -102,6 +144,10 @@ input {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
+}
+
+.calendar-actions {
+  margin-top: 10px;
 }
 
 button,
@@ -156,4 +202,8 @@ pre {
 .notice {
   color: #93c5fd;
   font-size: 0.88rem;
+}
+
+.day-title {
+  margin-top: -4px;
 }
