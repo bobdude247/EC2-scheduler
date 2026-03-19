@@ -29,5 +29,7 @@ Lightweight starter project for scheduling Amazon EC2 instances to start/stop on
 ## GitHub Pages deployment note
 If the published site shows a blank page, ensure GitHub Pages is set to use **GitHub Actions** as the source. The site must serve the built `dist` output, not repository root files.
 
+<!-- tiny deploy trigger: docs-only change to force a new GitHub Actions run -->
+
 ## Environment
 Copy `.env.example` to `.env` and fill in your values.
