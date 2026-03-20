@@ -51,6 +51,11 @@ h2 {
   margin-bottom: 10px;
 }
 
+.calendar-nav-group {
+  display: flex;
+  gap: 6px;
+}
+
 .calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));

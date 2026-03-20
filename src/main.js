@@ -1,9 +1,44 @@
-import { createApp, computed, reactive, ref } from 'vue/dist/vue.esm-bundler.js';
+import { createApp, computed, reactive, ref, watch } from 'vue/dist/vue.esm-bundler.js';
 import yaml from 'js-yaml';
 import './styles.css';
+import { normalizeMonthDate, parseIsoDate, shiftMonth, shiftYear } from './calendar-utils.js';
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const toIsoDate = (date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+
+function buildMonthGrid({ year, month, schedulesByDate, selectedDateSet, activeDay, primaryDate }) {
+  const firstOfMonth = new Date(year, month, 1);
+  const startOffset = firstOfMonth.getDay();
+  const gridStart = new Date(year, month, 1 - startOffset);
+  const cells = [];
+
+  for (let i = 0; i < 42; i += 1) {
+    const date = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
+    const isoDate = toIsoDate(date);
+    const eventItems = schedulesByDate[isoDate] || [];
+    const isPrimaryDate =
+      primaryDate.getFullYear() === date.getFullYear() &&
+      primaryDate.getMonth() === date.getMonth() &&
+      primaryDate.getDate() === date.getDate();
+
+    cells.push({
+      empty: false,
+      inCurrentMonth: date.getMonth() === month,
+      label: String(date.getDate()),
+      isoDate,
+      isSelected: selectedDateSet.has(isoDate),
+      isPrimaryDate,
+      isActive: activeDay === isoDate,
+      eventItems,
+      eventCount: eventItems.length,
+    });
+  }
+
+  return cells;
+}
 
 const emptyForm = () => ({
   target: 'tag:Environment=Dev',
@@ -19,17 +54,16 @@ createApp({
     const schedules = ref([]);
     const icsNotice = ref('No iCalendar data imported yet.');
     const today = new Date();
-    const calendarYear = ref(today.getFullYear());
-    const calendarMonth = ref(today.getMonth());
+    const calendarView = ref(normalizeMonthDate(today));
     const selectedDates = ref([form.date]);
     const activeDay = ref(form.date);
 
+    const calendarYear = computed(() => calendarView.value.getFullYear());
+    const calendarMonth = computed(() => calendarView.value.getMonth());
+
     const calendarTitle = computed(() => `${monthNames[calendarMonth.value]} ${calendarYear.value}`);
 
-    const selectedDate = computed(() => {
-      const [y, m, d] = form.date.split('-').map(Number);
-      return new Date(y, m - 1, d);
-    });
+    const selectedDate = computed(() => parseIsoDate(form.date) || new Date());
 
     const selectedDateSet = computed(() => new Set(selectedDates.value));
 
@@ -46,38 +80,19 @@ createApp({
     const activeDaySchedules = computed(() => schedulesByDate.value[activeDay.value] || []);
 
     const dayCells = computed(() => {
-      const firstDay = new Date(calendarYear.value, calendarMonth.value, 1).getDay();
-      const totalDays = new Date(calendarYear.value, calendarMonth.value + 1, 0).getDate();
-      const cells = [];
-
-      for (let i = 0; i < firstDay; i += 1) {
-        cells.push({ empty: true, label: '' });
-      }
-
-      for (let day = 1; day <= totalDays; day += 1) {
-        const isoDate = `${calendarYear.value}-${String(calendarMonth.value + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        const eventItems = schedulesByDate.value[isoDate] || [];
-        const isPrimaryDate =
-          selectedDate.value.getFullYear() === calendarYear.value &&
-          selectedDate.value.getMonth() === calendarMonth.value &&
-          selectedDate.value.getDate() === day;
-        const isSelected = selectedDateSet.value.has(isoDate);
-        const isActive = activeDay.value === isoDate;
-
-        cells.push({
-          empty: false,
-          label: String(day),
-          isoDate,
-          isSelected,
-          isPrimaryDate,
-          isActive,
-          eventItems,
-          eventCount: eventItems.length,
-        });
-      }
-
-      return cells;
+      return buildMonthGrid({
+        year: calendarYear.value,
+        month: calendarMonth.value,
+        schedulesByDate: schedulesByDate.value,
+        selectedDateSet: selectedDateSet.value,
+        activeDay: activeDay.value,
+        primaryDate: selectedDate.value,
+      });
     });
+
+    function syncCalendarToDate(date) {
+      calendarView.value = normalizeMonthDate(date);
+    }
 
     const yamlPreview = computed(() => {
       const doc = {
@@ -119,21 +134,19 @@ createApp({
     }
 
     function prevMonth() {
-      if (calendarMonth.value === 0) {
-        calendarMonth.value = 11;
-        calendarYear.value -= 1;
-        return;
-      }
-      calendarMonth.value -= 1;
+      calendarView.value = shiftMonth(calendarView.value, -1);
     }
 
     function nextMonth() {
-      if (calendarMonth.value === 11) {
-        calendarMonth.value = 0;
-        calendarYear.value += 1;
-        return;
-      }
-      calendarMonth.value += 1;
+      calendarView.value = shiftMonth(calendarView.value, 1);
+    }
+
+    function prevYear() {
+      calendarView.value = shiftYear(calendarView.value, -1);
+    }
+
+    function nextYear() {
+      calendarView.value = shiftYear(calendarView.value, 1);
     }
 
     function toggleCalendarDate(isoDate) {
@@ -148,11 +161,19 @@ createApp({
       selectedDates.value = nextSelected;
       form.date = isoDate;
       activeDay.value = isoDate;
+      const pickedDate = parseIsoDate(isoDate);
+      if (pickedDate) {
+        syncCalendarToDate(pickedDate);
+      }
     }
 
     function focusCalendarDate(isoDate) {
       form.date = isoDate;
       activeDay.value = isoDate;
+      const pickedDate = parseIsoDate(isoDate);
+      if (pickedDate) {
+        syncCalendarToDate(pickedDate);
+      }
     }
 
     function clearSelectedDates() {
@@ -216,6 +237,21 @@ createApp({
         .filter(Boolean);
     }
 
+    watch(
+      () => form.date,
+      (isoDate) => {
+        const date = parseIsoDate(isoDate);
+        if (!date) {
+          return;
+        }
+        syncCalendarToDate(date);
+        if (!selectedDates.value.includes(isoDate)) {
+          selectedDates.value = [...selectedDates.value, isoDate].sort();
+        }
+      },
+      { immediate: true }
+    );
+
     return {
       form,
       schedules,
@@ -229,8 +265,10 @@ createApp({
       activeDaySchedules,
       addSchedule,
       removeSchedule,
+      prevYear,
       prevMonth,
       nextMonth,
+      nextYear,
       toggleCalendarDate,
       focusCalendarDate,
       clearSelectedDates,
@@ -246,9 +284,15 @@ createApp({
       <section class="panel">
         <h2>Calendar</h2>
         <div class="calendar-header">
-          <button type="button" class="secondary" @click="prevMonth">◀</button>
+          <div class="calendar-nav-group">
+            <button type="button" class="secondary" @click="prevYear">«</button>
+            <button type="button" class="secondary" @click="prevMonth">◀</button>
+          </div>
           <strong>{{ calendarTitle }}</strong>
-          <button type="button" class="secondary" @click="nextMonth">▶</button>
+          <div class="calendar-nav-group">
+            <button type="button" class="secondary" @click="nextMonth">▶</button>
+            <button type="button" class="secondary" @click="nextYear">»</button>
+          </div>
         </div>
         <div class="calendar-grid weekdays">
           <span v-for="day in weekdayNames" :key="day">{{ day }}</span>
@@ -258,7 +302,7 @@ createApp({
             v-for="(cell, idx) in dayCells"
             :key="idx"
             class="calendar-cell"
-            :class="{ muted: cell.empty, selected: cell.isSelected, active: cell.isActive, hasEvents: cell.eventCount > 0 }"
+            :class="{ muted: !cell.inCurrentMonth, selected: cell.isSelected, active: cell.isActive, hasEvents: cell.eventCount > 0 }"
             :disabled="cell.empty"
             @click="!cell.empty && toggleCalendarDate(cell.isoDate)"
           >
